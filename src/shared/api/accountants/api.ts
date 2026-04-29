@@ -1,4 +1,10 @@
 import { supabase } from "@/lib/supabase";
+import type { Database } from "@/types/database";
+
+export type AccountantUpdatePatch = Pick<
+   Database['public']['Tables']['CONTABIL']['Update'],
+   'denumire' | 'email'
+>
 
 export const getAccountantsCounts = async () => {
    const { count, error } = await supabase
@@ -7,4 +13,13 @@ export const getAccountantsCounts = async () => {
 
    if (error) throw new Error(error.message);
    return count ?? 0;
+}
+
+export const updateAccountant = async (id: number, patch: AccountantUpdatePatch) => {
+   const { error } = await supabase
+      .from('CONTABIL')
+      .update(patch)
+      .eq('id', id);
+
+   if (error) throw new Error(error.message);
 }

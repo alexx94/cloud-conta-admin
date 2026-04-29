@@ -1,9 +1,17 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getAccountantsCounts } from "./api";
 
+export type AccountantListFilter = {
+   cursor: number | undefined
+   direction: 'forward' | 'backward'
+   search: string
+}
+
 export const accountantKeys = {
    all: ['accountants'] as const,
    counts: () => [...accountantKeys.all, 'count'] as const,
+   lists: () => [...accountantKeys.all, 'list'] as const,
+   list: (filters: AccountantListFilter) => [...accountantKeys.lists(), filters] as const,
 };
 
 export const accountantCountOptions = queryOptions({

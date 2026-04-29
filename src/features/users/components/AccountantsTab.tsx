@@ -1,46 +1,116 @@
 import { useState } from 'react'
-import { UserCheck, Mail, CalendarDays } from 'lucide-react'
+import { Plus, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, Pencil } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { EditAccountantModal } from './EditAccountantModal'
 import { SearchInput } from '@/components/ui/search-input'
-import { Pagination } from '@/components/ui/pagination'
 import { Badge } from '@/components/ui/badge'
-import { UserRowActions } from './UserRowActions'
+import { Button } from '@/components/ui/button'
+import { accountantListOptions } from '../queries/accountants'
+import { getAccountantsLastCursor, PAGE_SIZE } from '../api/accountants'
+import { accountantCountOptions } from '@/shared/api/accountants/queries'
+import { useDebounce } from '@/hooks/useDebounce'
 import type { Database } from '@/types/database'
 
 type Accountant = Database['public']['Tables']['CONTABIL']['Row']
 
-const MOCK_ACCOUNTANTS = [
-  {
-    id: 1, user_id: 'uid-acc-1', denumire: 'Ion Popescu Contabilitate',
-    email: 'ion.popescu@contabil.ro', created_at: '2023-09-01T09:00:00Z',
-  },
-  {
-    id: 2, user_id: 'uid-acc-2', denumire: 'Maria Ionescu Expert',
-    email: 'maria.ionescu@expert.ro', created_at: '2024-02-20T11:00:00Z',
-  },
-] as unknown as Accountant[]
+const AVATAR_COLORS = [
+  'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+]
 
-const ACTIVE_ACCOUNTANT_IDS = new Set(['uid-acc-1', 'uid-acc-2'])
-const PAGE_SIZE = 25
+function avatarColor(id: number) {
+  return AVATAR_COLORS[id % AVATAR_COLORS.length]
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
+}
+
+function DatePair({ created, modified }: { created: string; modified: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-baseline gap-1.5 text-xs text-muted-foreground">
+        <span className="text-[10px] text-muted-foreground/50 w-9 shrink-0">creat</span>
+        <span>{fmtDate(created)}</span>
+        <span className="text-muted-foreground/30">·</span>
+        <span className="text-[11px] tabular-nums">{fmtTime(created)}</span>
+      </div>
+      <div className="flex items-baseline gap-1.5 text-xs text-muted-foreground">
+        <span className="text-[10px] text-muted-foreground/50 w-9 shrink-0">modif.</span>
+        <span>{fmtDate(modified)}</span>
+        <span className="text-muted-foreground/30">·</span>
+        <span className="text-[11px] tabular-nums">{fmtTime(modified)}</span>
+      </div>
+    </div>
+  )
+}
 
 export function AccountantsTab() {
-  const [page, setPage] = useState(0)
   const [search, setSearch] = useState('')
+  const [cursor, setCursor] = useState<number | undefined>(undefined)
+  const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
+  const [selected, setSelected] = useState<Accountant | null>(null)
   const [editingAccountant, setEditingAccountant] = useState<Accountant | null>(null)
+
+  const debouncedSearch = useDebounce(search, 300)
+
+  const { data, isFetching } = useQuery(
+    accountantListOptions({ cursor, direction, search: debouncedSearch })
+  )
+  const { data: totalCount = 0 } = useQuery(accountantCountOptions)
+
+  const items = data?.items ?? []
+  const hasMore = data?.hasMore ?? false
+
+  const hasData = data !== undefined
+  const isFirstPage = direction === 'forward' ? cursor === undefined : (hasData && !hasMore)
+  const isLastPage = direction === 'backward' ? cursor === undefined : (hasData && !hasMore)
+  const canGoPrev = !isFirstPage
+  const canGoNext = !isLastPage
 
   function handleSearch(value: string) {
     setSearch(value)
-    setPage(0)
+    setCursor(undefined)
+    setDirection('forward')
+    setSelected(null)
   }
 
-  const effectiveSearch = search.trim().length >= 2 ? search.trim().toLowerCase() : ''
+  function goFirst() {
+    setCursor(undefined)
+    setDirection('forward')
+    setSelected(null)
+  }
 
-  const filtered = effectiveSearch
-    ? MOCK_ACCOUNTANTS.filter(a =>
-        a.denumire.toLowerCase().includes(effectiveSearch) ||
-        (a.email?.toLowerCase().includes(effectiveSearch) ?? false)
-      )
-    : MOCK_ACCOUNTANTS
+  function goNext() {
+    setCursor(items.at(-1)?.id)
+    setDirection('forward')
+    setSelected(null)
+  }
+
+  function goPrev() {
+    setCursor(items[0]?.id)
+    setDirection('backward')
+    setSelected(null)
+  }
+
+  async function goLast() {
+    const lastCursor = await getAccountantsLastCursor(totalCount, PAGE_SIZE)
+    setCursor(lastCursor)
+    setDirection('forward')
+    setSelected(null)
+  }
+
+  function toggleSelect(accountant: Accountant) {
+    setSelected(prev => prev?.id === accountant.id ? null : accountant)
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -51,78 +121,143 @@ export function AccountantsTab() {
           placeholder="Caută după denumire sau email..."
           className="w-full sm:max-w-sm"
         />
+        <div className="flex items-center gap-2 sm:ml-auto shrink-0">
+          <Button
+            variant="outline"
+            disabled={!selected}
+            onClick={() => selected && setEditingAccountant(selected)}
+            className="hidden md:inline-flex gap-1.5"
+          >
+            <Pencil className="size-3.5" />
+            Editează
+          </Button>
+          <Button className="gap-1.5">
+            <Plus className="size-4" />
+            Contabil nou
+          </Button>
+        </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="divide-y divide-border">
-          {filtered.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-              {effectiveSearch ? 'Niciun contabil găsit pentru această căutare.' : 'Niciun contabil înregistrat.'}
+      <div className={`bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
+
+        {/* Mobile: carduri */}
+        <div className="md:hidden divide-y divide-border/60">
+          {items.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {debouncedSearch ? 'Niciun contabil găsit pentru această căutare.' : 'Niciun contabil înregistrat.'}
             </div>
           ) : (
-            filtered.map(accountant => (
-              <div key={accountant.id} className="flex flex-col sm:flex-row sm:items-center gap-4 px-4 py-3 hover:bg-muted/40 transition-colors group">
-                <div className="size-9 rounded-lg bg-chart-2/10 flex items-center justify-center shrink-0">
-                  <UserCheck className="size-4 text-chart-2" />
+            items.map(accountant => (
+              <div
+                key={accountant.id}
+                onClick={() => toggleSelect(accountant)}
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-muted/30 border-l-2 ${
+                  selected?.id === accountant.id ? 'border-l-primary bg-primary/5' : 'border-l-transparent'
+                }`}
+              >
+                <div className={`size-9 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${avatarColor(accountant.id)}`}>
+                  {accountant.denumire.charAt(0).toUpperCase()}
                 </div>
-
-                <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-3 items-center w-full">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{accountant.denumire}</p>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                      <CalendarDays className="size-3.5 shrink-0" />
-                      <span>Înregistrat {new Date(accountant.created_at).toLocaleDateString('ro-RO')}</span>
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    {accountant.email ? (
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Mail className="size-3.5 text-muted-foreground shrink-0" />
-                        <span className="text-xs text-muted-foreground truncate">{accountant.email}</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">fără email</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground truncate">{accountant.denumire}</p>
+                  <p className="text-xs text-muted-foreground truncate">{accountant.email ?? <span className="italic">fără email</span>}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
                     <Badge variant={accountant.user_id ? 'success' : 'outline'}>
                       {accountant.user_id ? 'Cont activ' : 'Fără cont'}
                     </Badge>
-                    <Badge
-                      variant={accountant.user_id && ACTIVE_ACCOUNTANT_IDS.has(accountant.user_id) ? 'success' : 'outline'}
-                    >
-                      {accountant.user_id && ACTIVE_ACCOUNTANT_IDS.has(accountant.user_id)
-                        ? 'Contracte active'
-                        : 'Fără contracte'}
-                    </Badge>
                   </div>
                 </div>
-
-                <UserRowActions
-                  onEdit={() => setEditingAccountant(accountant)}
-                  email={accountant.email}
-                  displayName={accountant.denumire}
-                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={e => { e.stopPropagation(); setEditingAccountant(accountant) }}
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
               </div>
             ))
           )}
         </div>
 
-        <Pagination
-          page={page}
-          pageCount={1}
-          total={filtered.length}
-          pageSize={PAGE_SIZE}
-          onPageChange={setPage}
-        />
+        {/* Desktop: tabel */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[35%]">Denumire</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Email</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden xl:table-cell">Creat / Modificat</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-28">Statut</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center py-12 text-sm text-muted-foreground">
+                    {debouncedSearch ? 'Niciun contabil găsit pentru această căutare.' : 'Niciun contabil înregistrat.'}
+                  </td>
+                </tr>
+              ) : (
+                items.map(accountant => (
+                  <tr
+                    key={accountant.id}
+                    onClick={() => toggleSelect(accountant)}
+                    className={`cursor-pointer border-l-2 transition-colors ${
+                      selected?.id === accountant.id
+                        ? 'border-l-primary bg-primary/5 hover:bg-primary/5'
+                        : 'border-l-transparent hover:bg-muted/30'
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`size-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(accountant.id)}`}>
+                          {accountant.denumire.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{accountant.denumire}</p>
+                          <p className="text-xs text-muted-foreground">ID #{accountant.id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground truncate max-w-45">
+                      {accountant.email ?? <span className="italic">—</span>}
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell">
+                      <DatePair created={accountant.created_at} modified={accountant.modified_at} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={accountant.user_id ? 'success' : 'outline'}>
+                        {accountant.user_id ? 'Cont activ' : 'Fără cont'}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-end gap-1 px-4 py-3 border-t border-border">
+          <Button variant="outline" size="sm" disabled={isFirstPage || isFetching} onClick={goFirst}>
+            <ChevronsLeft className="size-4" />
+          </Button>
+          <Button variant="outline" size="sm" disabled={!canGoPrev || isFetching} onClick={goPrev}>
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button variant="outline" size="sm" disabled={!canGoNext || isFetching} onClick={goNext}>
+            <ChevronRight className="size-4" />
+          </Button>
+          <Button variant="outline" size="sm" disabled={isLastPage || isFetching || !!debouncedSearch} onClick={goLast}>
+            <ChevronsRight className="size-4" />
+          </Button>
+        </div>
       </div>
 
       {editingAccountant && (
         <EditAccountantModal
           accountant={editingAccountant}
           onClose={() => setEditingAccountant(null)}
+          onSuccess={() => setSelected(null)}
         />
       )}
     </div>

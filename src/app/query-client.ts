@@ -1,8 +1,7 @@
-import { QueryCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner';
 
 export const queryClient = new QueryClient({
-  // erori pentru useQuery (GET, fetch requests)
   queryCache: new QueryCache({
     onError: (error, query) => {
       const customMessage = query.meta?.errorMessage as string;
@@ -10,7 +9,12 @@ export const queryClient = new QueryClient({
     }
   }),
 
-  // TODO: Erori pentru useMutation (POST/PUT/DELETE, mutatii)
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      const customMessage = mutation.meta?.errorMessage as string;
+      toast.error(customMessage || `A aparut o eroare: ${error.message}`);
+    }
+  }),
 
   defaultOptions: {
     queries: {
