@@ -1,9 +1,13 @@
-import { useState } from 'react'
 import { Users, UserCheck } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { ClientsTab } from './ClientsTab'
 import { AccountantsTab } from './AccountantsTab'
 import { cn } from '@/lib/utils'
+import { clientCountOptions } from '@/shared/api/clients/queries'
+import { accountantCountOptions } from '@/shared/api/accountants/queries'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { Route } from '@/routes/_layout/users'
 
 type Tab = 'clients' | 'accountants'
 
@@ -12,11 +16,24 @@ const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'accountants', label: 'Contabili', icon: UserCheck },
 ]
 
-const clientsCount = 3
-const accountantsCount = 2
 
 export function UsersPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('clients')
+  const { tab: activeTab } = Route.useSearch()
+  const navigate = useNavigate()
+  const { 
+    data: clientsCount = 0,
+    isLoading: isLoadingClientsCount,
+  } = useQuery(clientCountOptions);
+
+  const {
+    data: accountantsCount = 0,
+    isLoading: isLoadingAccountantsCount,
+  } = useQuery(accountantCountOptions);
+
+  if (isLoadingClientsCount || isLoadingAccountantsCount) {
+    // TODO: Componenta de loading, si mai tarziu pus totul sub un skeleton
+    return <div>Loading...</div>
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -25,33 +42,34 @@ export function UsersPage() {
         description="Gestionează conturile de clienți și contabili."
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground mb-1">Total clienți</p>
-          <p className="text-2xl font-bold text-foreground">{clientsCount}</p>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground mb-1">Total contabili</p>
-          <p className="text-2xl font-bold text-foreground">{accountantsCount}</p>
-        </div>
-      </div>
-
-      <div className="flex gap-1 border-b border-border overflow-x-auto">
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={cn(
-              'shrink-0 flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
-              activeTab === id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Icon className="size-4" />
-            {label}
-          </button>
-        ))}
+      <div className="flex gap-1 border-b border-border">
+        {tabs.map(({ id, label, icon: Icon }) => {
+          const count = id === 'clients' ? clientsCount : accountantsCount
+          const isActive = activeTab === id
+          return (
+            <button
+              key={id}
+              onClick={() => navigate({ to: '/users', search: { tab: id } })}
+              className={cn(
+                'shrink-0 flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
+                isActive
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className="size-4" />
+              {label}
+              <span className={cn(
+                'rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-muted text-muted-foreground',
+              )}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {activeTab === 'clients' && <ClientsTab />}

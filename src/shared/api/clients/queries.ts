@@ -1,9 +1,17 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getClientsCounts } from "./api";
 
+export type ClientListFilter = {
+   cursor: number | undefined
+   direction: 'forward' | 'backward'
+   search: string
+}
+
 export const clientKeys = {
    all: ['clients'] as const,
    counts: () => [...clientKeys.all, 'count'] as const,
+   lists: () => [...clientKeys.all, 'list'] as const,
+   list: (filters: ClientListFilter) => [...clientKeys.lists(), filters] as const,
 };
 
 export const clientCountOptions = queryOptions({

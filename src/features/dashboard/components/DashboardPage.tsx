@@ -3,6 +3,8 @@ import { StatCard } from '@/components/ui/stat-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { clientCountOptions } from '@/shared/api/clients/queries'
 import { useQuery } from '@tanstack/react-query'
+import { accountantCountOptions } from '@/shared/api/accountants/queries'
+import { contractCountOptions } from '@/shared/contracts/queries'
 
 function formatRON(amount: number) {
   return new Intl.NumberFormat('ro-RO', { style: 'currency', currency: 'RON', maximumFractionDigits: 0 }).format(amount)
@@ -18,14 +20,29 @@ const mockStats = {
 }
 
 export function DashboardPage() {
+  // TODO: Schimbate toate aceste hooks useQuery => useSuspenseQuery, 
+  //       si fac wrap la componenta sub un Skeleton ca sa nu folosesc isLoading
   const { 
-    data: clientsCount,
+    data: clientsCount = 0,
     isLoading: isLoadingClientsCount,
   } = useQuery(clientCountOptions);
 
-  if (isLoadingClientsCount) {
+  const {
+    data: accountantsCount = 0,
+    isLoading: isLoadingAccountantsCount,
+  } = useQuery(accountantCountOptions);
+
+  const {
+    data: activeContractsCount = 0,
+    isLoading: isLoadingContractsCount,
+  } = useQuery(contractCountOptions);
+
+  if (isLoadingClientsCount || isLoadingAccountantsCount || isLoadingContractsCount) {
+    // TODO: Componenta de loading, si mai tarziu pus totul sub un skeleton
     return <div>Loading...</div>
   }
+
+  // TODO: Adaugat si pentru Situatie Plati statistici cu queries si tot
 
   return (
     <div className="flex flex-col gap-8">
@@ -42,18 +59,19 @@ export function DashboardPage() {
         />
         <StatCard
           label="Contabili"
-          value={mockStats.accountantsCount}
+          value={accountantsCount}
           icon={UserCheck}
         />
         <StatCard
           label="Contracte active"
-          value={mockStats.activeContractsCount}
+          value={activeContractsCount}
           icon={FileText}
         />
       </div>
 
       <div>
         <h2 className="text-base font-semibold text-foreground mb-3">Situație plăți</h2>
+        <h1 className='text-3xl font-semibold'>TODO - IN LUCRU, TREBUIE SA FAC QUERIES LA BD PENTRU PLATI</h1>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard
             label="Total încasat"
