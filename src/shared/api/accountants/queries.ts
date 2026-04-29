@@ -12,6 +12,7 @@ export const accountantKeys = {
    counts: () => [...accountantKeys.all, 'count'] as const,
    lists: () => [...accountantKeys.all, 'list'] as const,
    list: (filters: AccountantListFilter) => [...accountantKeys.lists(), filters] as const,
+   search: (term: string) => [...accountantKeys.all, 'search', term] as const,
 };
 
 export const accountantCountOptions = queryOptions({

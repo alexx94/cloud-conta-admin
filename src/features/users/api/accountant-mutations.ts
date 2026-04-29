@@ -1,5 +1,5 @@
 import { mutationOptions } from "@tanstack/react-query";
-import { updateAccountant, type AccountantUpdatePatch } from "./api";
+import { updateAccountant, type AccountantUpdatePatch } from "@/shared/api/accountants/api";
 
 export const updateAccountantOptions = (id: number) =>
    mutationOptions({

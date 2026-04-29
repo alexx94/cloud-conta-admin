@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { updateAccountantOptions } from '@/shared/api/accountants/mutations'
+import { updateAccountantOptions } from '@/features/users/api/accountant-mutations'
 import { accountantKeys } from '@/shared/api/accountants/queries'
 import type { Database } from '@/types/database'
 
@@ -43,6 +43,7 @@ export function EditAccountantModal({ accountant, onClose, onSuccess }: Props) {
 
   function handleSave() {
     mutation.mutate({
+      modified_at: new Date().toISOString(),
       denumire: denumire.trim(),
       email: email.trim() || null,
     })
@@ -92,6 +93,7 @@ export function EditAccountantModal({ accountant, onClose, onSuccess }: Props) {
               value={denumire}
               onChange={e => setDenumire(e.target.value)}
               disabled={mutation.isPending}
+              autoFocus
             />
           </div>
           <div className="flex flex-col gap-1.5">

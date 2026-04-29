@@ -3,7 +3,7 @@ import type { Database } from "@/types/database";
 
 export type AccountantUpdatePatch = Pick<
    Database['public']['Tables']['CONTABIL']['Update'],
-   'denumire' | 'email'
+   'denumire' | 'email' | 'modified_at'
 >
 
 export const getAccountantsCounts = async () => {
@@ -22,4 +22,16 @@ export const updateAccountant = async (id: number, patch: AccountantUpdatePatch)
       .eq('id', id);
 
    if (error) throw new Error(error.message);
+}
+
+export const searchAccountants = async (term: string) => {
+   const { data, error } = await supabase
+      .from('CONTABIL')
+      .select('id, denumire, email')
+      .ilike('denumire', `%${term}%`)
+      .order('denumire', { ascending: true })
+      .limit(6)
+
+   if (error) throw new Error(error.message)
+   return data ?? []
 }

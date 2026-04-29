@@ -263,6 +263,7 @@ export function ClientsTab() {
         <EditClientModal
           client={editingClient}
           onClose={() => setEditingClient(null)}
+          onSuccess={() => setSelected(null)}
         />
       )}
 
