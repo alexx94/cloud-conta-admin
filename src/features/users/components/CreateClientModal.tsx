@@ -126,6 +126,8 @@ export function CreateClientModal({ onClose }: Props) {
     setJudet(found?.denumire ?? '')
   }
 
+  // TODO - Client modal trebuie sa aiba mutations si queries puse ca hooks, nu asa la gramada
+
   const queryClient = useQueryClient()
 
   const anafMutation = useMutation({

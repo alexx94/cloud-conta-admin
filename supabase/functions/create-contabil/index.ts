@@ -1,7 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "jsr:@supabase/supabase-js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CIF_DIGITS_REGEX = /^\d{2,10}$/;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -42,43 +41,20 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { data: userRole, error: roleError } = await supabaseAdmin
+    const { data: callerRole, error: callerRoleError } = await supabaseAdmin
       .from("USER_ROLES")
       .select("role")
       .eq("user_id", callerId)
       .single();
 
-    if (roleError || !userRole || userRole.role !== "admin") {
+    if (callerRoleError || !callerRole || callerRole.role !== "admin") {
       return json({ error: "Forbidden: You do not have access to this resource" }, 403);
     }
 
     const body = await req.json();
-    const {
-      cif,
-      denumire,
-      tipFirma,
-      tipImpozitare,
-      perioadaFiscala,
-      estePlatitorTva,
-      areSalariati,
-      telefon,
-      adresa,
-      localitate,
-      judet,
-      codJudet,
-      nrRegCom,
-      email,
-      password,
-    } = body;
+    const { denumire, email, password } = body;
 
     // Validate inputs before any side effects
-    // TODO: Daca e nevoie pe viitor, las si RO in fata (pt efacturi sau
-    // alte integrari, daca cer asta), dar pentru validare si unicitate e mai simplu fara
-    const cifClean = String(cif ?? "").replace(/^RO/i, "").trim();
-    if (!CIF_DIGITS_REGEX.test(cifClean)) {
-      return json({ error: "CIF invalid: trebuie să conțină 2-10 cifre." }, 400);
-    }
-
     if (!String(denumire ?? "").trim()) {
       return json({ error: "Denumirea este obligatorie." }, 400);
     }
@@ -109,57 +85,39 @@ Deno.serve(async (req: Request) => {
 
     const newUserId = newUser.user.id;
 
-    // Insert CLIENT — if this fails, delete the auth user (compensation)
-    const { data: insertedClient, error: clientError } = await supabaseAdmin
-      .from("CLIENT")
+    // Insert CONTABIL — if this fails, delete the auth user (compensation)
+    const { data: insertedContabil, error: contabilError } = await supabaseAdmin
+      .from("CONTABIL")
       .insert({
         user_id: newUserId,
-        cif: cifClean,
         denumire: String(denumire).trim(),
-        tip_firma: tipFirma,
-        tip_impozitare: tipImpozitare,
-        perioada_fiscala: perioadaFiscala,
-        este_platitor_tva: estePlatitorTva,
-        are_salariati: areSalariati,
         email: emailClean,
-        telefon: telefon ?? null,
-        adresa: adresa ?? null,
-        localitate: localitate ?? null,
-        judet: judet ?? null,
-        cod_judet: codJudet ?? null,
-        nr_reg_com: nrRegCom ?? null,
       })
       .select("id")
       .single();
 
-    if (clientError) {
+    if (contabilError) {
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
 
-      // Map unique constraint violations to user-friendly messages
-      if (clientError.code === "23505") {
-        if (clientError.message.includes("CLIENT_cif_key")) {
-          return json({ error: "Un client cu acest CIF există deja." }, 409);
-        }
-        if (clientError.message.includes("CLIENT_denumire_key")) {
-          return json({ error: "Un client cu această denumire există deja." }, 409);
-        }
+      if (contabilError.code === "23505" && contabilError.message.includes("CONTABIL_denumire_key")) {
+        return json({ error: "Un contabil cu această denumire există deja." }, 409);
       }
 
-      return json({ error: "Nu am putut crea clientul: " + clientError.message }, 500);
+      return json({ error: "Nu am putut crea contabilul: " + contabilError.message }, 500);
     }
 
-    // Insert USER_ROLES — if this fails, delete CLIENT row and auth user (compensation)
+    // Insert USER_ROLES — if this fails, delete CONTABIL row and auth user (compensation)
     const { error: insertRoleError } = await supabaseAdmin
       .from("USER_ROLES")
-      .insert({ user_id: newUserId, role: "client_admin" });
+      .insert({ user_id: newUserId, role: "contabil_admin" });
 
     if (insertRoleError) {
-      await supabaseAdmin.from("CLIENT").delete().eq("id", insertedClient.id);
+      await supabaseAdmin.from("CONTABIL").delete().eq("id", insertedContabil.id);
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
-      return json({ error: "Nu am putut atribui rolul clientului: " + insertRoleError.message }, 500);
+      return json({ error: "Nu am putut atribui rolul contabilului: " + insertRoleError.message }, 500);
     }
 
-    return json({ clientId: insertedClient.id, userId: newUserId });
+    return json({ contabilId: insertedContabil.id, userId: newUserId });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return json({ error: message }, 500);

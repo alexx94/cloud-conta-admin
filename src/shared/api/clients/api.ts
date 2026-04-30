@@ -3,7 +3,7 @@ import type { Database } from "@/types/database";
 
 export type ClientUpdatePatch = Pick<
    Database['public']['Tables']['CLIENT']['Update'],
-   'denumire' | 'email' | 'telefon' | 'adresa' | 'localitate' | 'judet' | 'cod_judet' | 'nr_reg_com' |
+   'cif' | 'denumire' | 'email' | 'telefon' | 'adresa' | 'localitate' | 'judet' | 'cod_judet' | 'nr_reg_com' |
    'tip_firma' | 'tip_impozitare' | 'perioada_fiscala' |
    'este_platitor_tva' | 'are_salariati' | 'banca' | 'iban' | 'modified_at'
 >

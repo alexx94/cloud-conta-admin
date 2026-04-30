@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Plus, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, Pencil } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { EditAccountantModal } from './EditAccountantModal'
+import { CreateContabilModal } from './CreateContabilModal'
 import { SearchInput } from '@/components/ui/search-input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -59,6 +61,7 @@ export function AccountantsTab() {
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
   const [selected, setSelected] = useState<Accountant | null>(null)
   const [editingAccountant, setEditingAccountant] = useState<Accountant | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -122,16 +125,21 @@ export function AccountantsTab() {
           className="w-full sm:max-w-sm"
         />
         <div className="flex items-center gap-2 sm:ml-auto shrink-0">
-          <Button
-            variant="outline"
-            disabled={!selected}
-            onClick={() => selected && setEditingAccountant(selected)}
-            className="hidden md:inline-flex gap-1.5"
+          <span
+            className="hidden md:inline-flex"
+            onClick={() => { if (!selected) toast.info('Selectează un rând din tabel mai întâi.') }}
           >
-            <Pencil className="size-3.5" />
-            Editează
-          </Button>
-          <Button className="gap-1.5">
+            <Button
+              variant="outline"
+              disabled={!selected}
+              onClick={() => selected && setEditingAccountant(selected)}
+              className="gap-1.5"
+            >
+              <Pencil className="size-3.5" />
+              Editează
+            </Button>
+          </span>
+          <Button onClick={() => setShowCreate(true)} className="gap-1.5">
             <Plus className="size-4" />
             Contabil nou
           </Button>
@@ -260,6 +268,8 @@ export function AccountantsTab() {
           onSuccess={() => setSelected(null)}
         />
       )}
+
+      {showCreate && <CreateContabilModal onClose={() => setShowCreate(false)} />}
     </div>
   )
 }

@@ -77,6 +77,7 @@ const JUDET_OPTIONS = [
 ]
 
 export function EditClientModal({ client, onClose, onSuccess }: Props) {
+  const [cif, setCif] = useState(client.cif)
   const [denumire, setDenumire] = useState(client.denumire)
   const [email, setEmail] = useState(client.email ?? '')
   const [telefon, setTelefon] = useState(client.telefon ?? '')
@@ -100,6 +101,7 @@ export function EditClientModal({ client, onClose, onSuccess }: Props) {
   }
 
   const isDirty =
+    cif.trim() !== client.cif.trim() ||
     denumire.trim() !== client.denumire.trim() ||
     email.trim() !== (client.email ?? '').trim() ||
     telefon.trim() !== (client.telefon ?? '').trim() ||
@@ -130,6 +132,7 @@ export function EditClientModal({ client, onClose, onSuccess }: Props) {
   const anafMutation = useMutation({
     ...anafLookupOptions,
     onSuccess: (data) => {
+      setCif(data.cod_fiscal)
       setDenumire(data.denumire)
       setAdresa(data.adresa)
       setLocalitate(data.localitate)
@@ -156,6 +159,7 @@ export function EditClientModal({ client, onClose, onSuccess }: Props) {
   function handleSave() {
     saveMutation.mutate({
       modified_at: new Date().toISOString(),
+      cif: cif.trim(),
       denumire: denumire.trim(),
       email: email.trim() || null,
       telefon: telefon.trim() || null,
@@ -237,6 +241,24 @@ export function EditClientModal({ client, onClose, onSuccess }: Props) {
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
+              <Field label="CIF" required>
+                <Input
+                  value={cif}
+                  onChange={e => setCif(e.target.value)}
+                  placeholder="ex: RO12345678"
+                  disabled={isAnyPending}
+                />
+              </Field>
+              <Field label="Nr. Reg. Com.">
+                <Input
+                  value={nrRegCom}
+                  onChange={e => setNrRegCom(e.target.value)}
+                  placeholder="J40/1234/2020"
+                  disabled={isAnyPending}
+                />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <Field label="Email">
                 <Input
                   type="email"
@@ -251,16 +273,6 @@ export function EditClientModal({ client, onClose, onSuccess }: Props) {
                   value={telefon}
                   onChange={e => setTelefon(e.target.value)}
                   placeholder="—"
-                  disabled={isAnyPending}
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Nr. Reg. Com.">
-                <Input
-                  value={nrRegCom}
-                  onChange={e => setNrRegCom(e.target.value)}
-                  placeholder="J40/1234/2020"
                   disabled={isAnyPending}
                 />
               </Field>

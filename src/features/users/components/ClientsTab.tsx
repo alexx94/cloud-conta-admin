@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, Pencil } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { EditClientModal } from './EditClientModal'
 import { CreateClientModal } from './CreateClientModal'
 import { SearchInput } from '@/components/ui/search-input'
@@ -124,15 +125,20 @@ export function ClientsTab() {
           className="w-full sm:max-w-sm"
         />
         <div className="flex items-center gap-2 sm:ml-auto shrink-0">
-          <Button
-            variant="outline"
-            disabled={!selected}
-            onClick={() => selected && setEditingClient(selected)}
-            className="hidden md:inline-flex gap-1.5"
+          <span
+            className="hidden md:inline-flex"
+            onClick={() => { if (!selected) toast.info('Selectează un rând din tabel mai întâi.') }}
           >
-            <Pencil className="size-3.5" />
-            Editează
-          </Button>
+            <Button
+              variant="outline"
+              disabled={!selected}
+              onClick={() => selected && setEditingClient(selected)}
+              className="gap-1.5"
+            >
+              <Pencil className="size-3.5" />
+              Editează
+            </Button>
+          </span>
           <Button onClick={() => setShowCreate(true)} className="gap-1.5">
             <Plus className="size-4" />
             Client nou

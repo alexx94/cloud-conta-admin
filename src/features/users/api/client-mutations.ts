@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { mutationOptions } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { updateClient, type ClientUpdatePatch } from "@/shared/api/clients/api";
