@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -200,7 +200,9 @@ export type Database = {
       }
       CONTRACT_SERVICII: {
         Row: {
+          client_id: number | null
           client_uid: string | null
+          contabil_id: number | null
           contabil_uid: string | null
           created_at: string
           data_inceput: string | null
@@ -215,7 +217,9 @@ export type Database = {
           tarif_lunar: number
         }
         Insert: {
+          client_id?: number | null
           client_uid?: string | null
+          contabil_id?: number | null
           contabil_uid?: string | null
           created_at?: string
           data_inceput?: string | null
@@ -230,7 +234,9 @@ export type Database = {
           tarif_lunar: number
         }
         Update: {
+          client_id?: number | null
           client_uid?: string | null
+          contabil_id?: number | null
           contabil_uid?: string | null
           created_at?: string
           data_inceput?: string | null
@@ -244,7 +250,22 @@ export type Database = {
             | null
           tarif_lunar?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_contract_client"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "CLIENT"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_contract_contabil"
+            columns: ["contabil_id"]
+            isOneToOne: false
+            referencedRelation: "CONTABIL"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       DECLARATIE: {
         Row: {
@@ -606,6 +627,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "EFACTURA_LINIE_efactura_id_fkey"
+            columns: ["efactura_id"]
+            isOneToOne: false
+            referencedRelation: "EFACTURA_VIEW"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "EFACTURA_LINIE_um_fkey"
             columns: ["um"]
             isOneToOne: false
@@ -686,6 +714,13 @@ export type Database = {
             columns: ["efactura_id"]
             isOneToOne: false
             referencedRelation: "EFACTURA"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "INCASARE_FACTURA_efactura_id_fkey"
+            columns: ["efactura_id"]
+            isOneToOne: false
+            referencedRelation: "EFACTURA_VIEW"
             referencedColumns: ["id"]
           },
         ]
@@ -909,10 +944,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "STORNARE_factura_originala_id_fkey"
+            columns: ["factura_originala_id"]
+            isOneToOne: false
+            referencedRelation: "EFACTURA_VIEW"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "STORNARE_factura_storno_id_fkey"
             columns: ["factura_storno_id"]
             isOneToOne: true
             referencedRelation: "EFACTURA"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "STORNARE_factura_storno_id_fkey"
+            columns: ["factura_storno_id"]
+            isOneToOne: true
+            referencedRelation: "EFACTURA_VIEW"
             referencedColumns: ["id"]
           },
         ]
@@ -979,7 +1028,92 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      EFACTURA_VIEW: {
+        Row: {
+          client_id: number | null
+          created_at: string | null
+          cumparator_adresa: string | null
+          cumparator_cif: string | null
+          cumparator_denumire: string | null
+          cumparator_judet: string | null
+          cumparator_nr_reg_com: string | null
+          cumparator_oras: string | null
+          cumparator_platitor_tva: boolean | null
+          cumparator_tara: string | null
+          cumparator_telefon: string | null
+          data_emitere: string | null
+          data_scadenta: string | null
+          data_taxa: string | null
+          erori_anaf: string | null
+          este_persoana_fizica: boolean | null
+          furnizor_adresa: string | null
+          furnizor_banca: string | null
+          furnizor_cif: string | null
+          furnizor_cont_bancar: string | null
+          furnizor_contact_nume: string | null
+          furnizor_denumire: string | null
+          furnizor_email: string | null
+          furnizor_forma_juridica: string | null
+          furnizor_judet: string | null
+          furnizor_nr_reg_com: string | null
+          furnizor_oras: string | null
+          furnizor_platitor_tva: boolean | null
+          furnizor_swift: string | null
+          furnizor_telefon: string | null
+          id: string | null
+          index_descarcare: string | null
+          index_incarcare: string | null
+          mesaj_anaf: string | null
+          modified_at: string | null
+          moneda: Database["public"]["Enums"]["moneda_enum"] | null
+          nota: string | null
+          numar: number | null
+          raspuns_anaf: Json | null
+          recipisa: string | null
+          rotunjire: number | null
+          serie_id: number | null
+          status_factura:
+            | Database["public"]["Enums"]["status_factura_enum"]
+            | null
+          status_factura_calculat:
+            | Database["public"]["Enums"]["status_incasare_enum"]
+            | null
+          status_spv: Database["public"]["Enums"]["status_spv_enum"] | null
+          storage_path: string | null
+          suma_incasata: number | null
+          suma_platita_la_emitere: number | null
+          tip_factura: Database["public"]["Enums"]["tip_factura_enum"] | null
+          total_cu_tva: number | null
+          total_fara_tva: number | null
+          total_incasat: number | null
+          total_tva: number | null
+          tva_incasare: boolean | null
+          xml_generat: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "efactura_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "CLIENT"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "EFACTURA_cumparator_tara_fkey"
+            columns: ["cumparator_tara"]
+            isOneToOne: false
+            referencedRelation: "TARA"
+            referencedColumns: ["cod"]
+          },
+          {
+            foreignKeyName: "EFACTURA_serie_id_fkey"
+            columns: ["serie_id"]
+            isOneToOne: false
+            referencedRelation: "SERIE_FACTURA"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_dashboard_chart_stats: {

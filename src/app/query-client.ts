@@ -11,8 +11,12 @@ export const queryClient = new QueryClient({
 
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
-      const customMessage = mutation.meta?.errorMessage as string;
-      toast.error(customMessage || `A aparut o eroare: ${error.message}`);
+      const customMessage = mutation.meta?.errorMessage as string | undefined;
+      if (customMessage) {
+        toast.error(customMessage, { description: error.message });
+      } else {
+        toast.error(`A aparut o eroare: ${error.message}`);
+      }
     }
   }),
 

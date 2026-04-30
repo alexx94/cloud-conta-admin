@@ -1,34 +1,23 @@
 import { useState } from 'react'
 import { X, Search, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { JUDETE } from '@/shared/constants/judete'
-import { accountantSearchOptions } from '@/features/users/queries/accountants'
 import { anafLookupOptions } from '@/features/users/api/anaf'
-import { useDebounce } from '@/hooks/useDebounce'
+import { createClientOptions } from '@/features/users/api/client-mutations'
+import { clientKeys } from '@/shared/api/clients/queries'
 import type { Database } from '@/types/database'
 
 type TipFirma = Database['public']['Enums']['tip_firma_enum']
 type TipImpozitare = Database['public']['Enums']['tip_impozitare_enum']
 type PerioadaFiscala = Database['public']['Enums']['perioada_fiscala_enum']
-type Moneda = Database['public']['Enums']['moneda_enum']
-
-type AccountantResult = { id: number; denumire: string; email: string | null }
 
 interface Props {
   onClose: () => void
 }
-
-const AVATAR_COLORS = [
-  'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
-]
 
 const JUDET_OPTIONS = [
   { value: '', label: '— Selectează județul —' },
@@ -95,92 +84,8 @@ function Toggle({ label, checked, onChange }: {
   )
 }
 
-function AccountantPicker({ value, onChange }: {
-  value: AccountantResult | null
-  onChange: (v: AccountantResult | null) => void
-}) {
-  const [inputValue, setInputValue] = useState('')
-  const [isFocused, setIsFocused] = useState(false)
-  const debouncedInput = useDebounce(inputValue, 300)
-
-  const { data: results = [], isFetching } = useQuery(
-    accountantSearchOptions(debouncedInput)
-  )
-
-  const showDropdown = isFocused && debouncedInput.length >= 2
-
-  if (value) {
-    return (
-      <div className="flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
-        <div className={cn(
-          'size-7 rounded-md flex items-center justify-center text-xs font-bold shrink-0',
-          AVATAR_COLORS[value.id % AVATAR_COLORS.length]
-        )}>
-          {value.denumire.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{value.denumire}</p>
-          {value.email && <p className="text-xs text-muted-foreground truncate">{value.email}</p>}
-        </div>
-        <button
-          onClick={() => onChange(null)}
-          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="relative">
-      <Input
-        value={inputValue}
-        onChange={e => setInputValue(e.target.value)}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        placeholder="Tastează minim 2 caractere..."
-      />
-      {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-background border border-border rounded-md shadow-md overflow-hidden">
-          {isFetching ? (
-            <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground">
-              <Loader2 className="size-3.5 animate-spin" />
-              Se caută...
-            </div>
-          ) : results.length === 0 ? (
-            <p className="py-3 text-center text-xs text-muted-foreground">Niciun contabil găsit.</p>
-          ) : (
-            <div className="max-h-48 overflow-y-auto divide-y divide-border/60">
-              {results.map(a => (
-                <button
-                  key={a.id}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => { onChange(a); setInputValue('') }}
-                >
-                  <div className={cn(
-                    'size-7 rounded-md flex items-center justify-center text-xs font-bold shrink-0',
-                    AVATAR_COLORS[a.id % AVATAR_COLORS.length]
-                  )}>
-                    {a.denumire.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground truncate">{a.denumire}</p>
-                    {a.email && <p className="text-xs text-muted-foreground truncate">{a.email}</p>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-type Step = 'client' | 'contract' | 'credentials'
-const STEPS: Step[] = ['client', 'contract', 'credentials']
+type Step = 'client' | 'credentials'
+const STEPS: Step[] = ['client', 'credentials']
 
 export function CreateClientModal({ onClose }: Props) {
   const [step, setStep] = useState<Step>('client')
@@ -200,13 +105,7 @@ export function CreateClientModal({ onClose }: Props) {
   const [codJudet, setCodJudet] = useState('')
   const [nrRegCom, setNrRegCom] = useState('')
 
-  // Step 2 — Contract
-  const [selectedAccountant, setSelectedAccountant] = useState<AccountantResult | null>(null)
-  const [tarifLunar, setTarifLunar] = useState('')
-  const [moneda, setMoneda] = useState<Moneda>('RON')
-  const [dataInceput, setDataInceput] = useState(() => new Date().toISOString().split('T')[0])
-
-  // Step 3 — Credențiale
+  // Step 2 — Credențiale
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -227,6 +126,8 @@ export function CreateClientModal({ onClose }: Props) {
     setJudet(found?.denumire ?? '')
   }
 
+  const queryClient = useQueryClient()
+
   const anafMutation = useMutation({
     ...anafLookupOptions,
     onSuccess: (data) => {
@@ -245,12 +146,23 @@ export function CreateClientModal({ onClose }: Props) {
     },
   })
 
-  function goBack() {
-    setStep(step === 'credentials' ? 'contract' : 'client')
+  const createMutation = useMutation({
+    ...createClientOptions,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: clientKeys.all })
+      toast.success('Client creat cu succes.')
+      onClose()
+    },
+  })
+
+  function handleClose() {
+    if (createMutation.isPending) return
+    onClose()
   }
 
   function handleCreate() {
-    console.log('CreateClient payload:', {
+    if (!tipFirma || !tipImpozitare) return
+    createMutation.mutate({
       cif: cif.trim(),
       denumire: denumire.trim(),
       tipFirma,
@@ -264,10 +176,6 @@ export function CreateClientModal({ onClose }: Props) {
       judet: judet || null,
       codJudet: codJudet || null,
       nrRegCom: nrRegCom.trim() || null,
-      contabilId: selectedAccountant?.id ?? null,
-      tarifLunar: Number(tarifLunar),
-      moneda,
-      dataInceput,
       email: email.trim(),
       password,
     })
@@ -275,19 +183,16 @@ export function CreateClientModal({ onClose }: Props) {
 
   const stepTitles: Record<Step, string> = {
     client: 'Date firmă',
-    contract: 'Contract servicii',
     credentials: 'Cont utilizator',
   }
 
-  const canGoNext =
-    (step === 'client' && !!cif.trim() && !!denumire.trim() && !!tipFirma && !!tipImpozitare) ||
-    (step === 'contract' && !!tarifLunar)
+  const canGoNext = step === 'client' && !!cif.trim() && !!denumire.trim() && !!tipFirma && !!tipImpozitare
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-      onKeyDown={e => { if (e.key === 'Escape') onClose() }}
+      onClick={handleClose}
+      onKeyDown={e => { if (e.key === 'Escape') handleClose() }}
     >
       <div
         className="bg-background border border-border rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col"
@@ -299,7 +204,11 @@ export function CreateClientModal({ onClose }: Props) {
             <h2 className="text-sm font-semibold text-foreground">Client nou</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{stepTitles[step]}</p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mt-0.5">
+          <button
+            onClick={handleClose}
+            disabled={createMutation.isPending}
+            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 disabled:opacity-40 disabled:pointer-events-none"
+          >
             <X className="size-4" />
           </button>
         </div>
@@ -430,48 +339,7 @@ export function CreateClientModal({ onClose }: Props) {
             </>
           )}
 
-          {/* ── Step 2: Contract ── */}
-          {step === 'contract' && (
-            <>
-              <Field label="Contabil">
-                <AccountantPicker value={selectedAccountant} onChange={setSelectedAccountant} />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Tarif lunar" required>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={tarifLunar}
-                    onChange={e => setTarifLunar(e.target.value)}
-                    placeholder="ex: 500"
-                    autoFocus
-                  />
-                </Field>
-                <Field label="Monedă">
-                  <SelectInput
-                    value={moneda}
-                    onChange={v => setMoneda(v as Moneda)}
-                    options={[
-                      { value: 'RON', label: 'RON' },
-                      { value: 'EUR', label: 'EUR' },
-                      { value: 'USD', label: 'USD' },
-                    ]}
-                  />
-                </Field>
-              </div>
-
-              <Field
-                label="Dată început"
-                required
-                hint="Dacă data e azi sau în trecut, contractul devine activ imediat și se generează prima plată."
-              >
-                <Input type="date" value={dataInceput} onChange={e => setDataInceput(e.target.value)} />
-              </Field>
-            </>
-          )}
-
-          {/* ── Step 3: Credențiale ── */}
+          {/* ── Step 2: Credențiale ── */}
           {step === 'credentials' && (
             <>
               <Field label="Email" required error={emailError}>
@@ -482,6 +350,7 @@ export function CreateClientModal({ onClose }: Props) {
                   onBlur={() => setEmailTouched(true)}
                   placeholder="client@exemplu.ro"
                   autoFocus
+                  disabled={createMutation.isPending}
                   className={emailError ? 'border-red-500 focus-visible:ring-red-500/30' : ''}
                 />
               </Field>
@@ -493,6 +362,7 @@ export function CreateClientModal({ onClose }: Props) {
                     onChange={e => setPassword(e.target.value)}
                     onBlur={() => setPasswordTouched(true)}
                     placeholder="min. 8 caractere"
+                    disabled={createMutation.isPending}
                     className={`pr-9 ${passwordError ? 'border-red-500 focus-visible:ring-red-500/30' : ''}`}
                   />
                   <button
@@ -512,11 +382,11 @@ export function CreateClientModal({ onClose }: Props) {
         {/* Footer */}
         <div className="flex gap-2 px-5 py-4 border-t border-border shrink-0">
           {step !== 'client' ? (
-            <Button variant="outline" className="flex-1" onClick={goBack}>
+            <Button variant="outline" className="flex-1" onClick={() => setStep('client')} disabled={createMutation.isPending}>
               Înapoi
             </Button>
           ) : (
-            <Button variant="outline" className="flex-1" onClick={onClose}>
+            <Button variant="outline" className="flex-1" onClick={handleClose}>
               Anulează
             </Button>
           )}
@@ -524,7 +394,7 @@ export function CreateClientModal({ onClose }: Props) {
           {step !== 'credentials' ? (
             <Button
               className="flex-1"
-              onClick={() => setStep(step === 'client' ? 'contract' : 'credentials')}
+              onClick={() => setStep('credentials')}
               disabled={!canGoNext}
             >
               Continuă
@@ -533,9 +403,10 @@ export function CreateClientModal({ onClose }: Props) {
             <Button
               className="flex-1"
               onClick={handleCreate}
-              disabled={!credentialsValid}
+              disabled={!credentialsValid || createMutation.isPending}
+              loading={createMutation.isPending}
             >
-              Creează client
+              {createMutation.isPending ? 'Se creează...' : 'Creează client'}
             </Button>
           )}
         </div>
