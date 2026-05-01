@@ -21,3 +21,14 @@ export const getClientsCounts = async () => {
    if (error) throw new Error(error.message);
    return count ?? 0;
 }
+
+export const searchClients = async (term: string) => {
+   const { data, error } = await supabase
+      .from('CLIENT')
+      .select('id, denumire, cif, user_id')
+      .ilike('denumire', `%${term}%`)
+      .order('denumire', { ascending: true })
+      .limit(6)
+   if (error) throw new Error(error.message)
+   return data ?? []
+}

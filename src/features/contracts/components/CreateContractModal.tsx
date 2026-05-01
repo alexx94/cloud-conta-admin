@@ -1,211 +1,324 @@
 import { useState } from 'react'
 import { X, Search, Check } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { Database } from '@/types/database'
+import { createContractOptions } from '@/features/contracts/api/contract-mutations'
+import { contractKeys } from '@/shared/contracts/queries'
+import { clientKeys } from '@/shared/api/clients/queries'
+import { accountantKeys } from '@/shared/api/accountants/queries'
+import { searchClients } from '@/shared/api/clients/api'
+import { searchAccountants } from '@/shared/api/accountants/api'
+import type { Moneda } from '@/features/contracts/types'
 
-type Moneda = Database['public']['Enums']['moneda_enum']
+type ClientResult = { id: number; denumire: string; cif: string; user_id: string | null }
+type ContabilResult = { id: number; denumire: string; user_id: string | null }
 
-interface Props {
-  onClose: () => void
+const MONEDE: Moneda[] = ['RON', 'EUR', 'USD', 'GBP', 'CHF']
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+   return (
+      <div className="flex flex-col gap-1.5">
+         <label className="text-xs font-medium text-muted-foreground">
+            {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+         </label>
+         {children}
+      </div>
+   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-interface PickerItem {
-  id: string
-  label: string
-  sub?: string
-}
-
-const MOCK_CLIENT_ITEMS: PickerItem[] = [
-  { id: 'uid-client-1', label: 'Alfa SRL', sub: 'RO12345678' },
-  { id: 'uid-client-2', label: 'Beta PFA', sub: 'RO87654321' },
-]
-
-const MOCK_CONTABIL_ITEMS: PickerItem[] = [
-  { id: 'uid-acc-1', label: 'Ion Popescu Contabilitate' },
-  { id: 'uid-acc-2', label: 'Maria Ionescu Expert' },
-]
-
-function SearchPicker({
-  label,
-  placeholder,
-  items,
-  selectedId,
-  selectedLabel,
-  onSelect,
-  onClear,
-  onSearchChange,
-  search,
-  minChars = 2,
+function ClientPicker({
+   value,
+   onSelect,
+   disabled,
 }: {
-  label: string
-  placeholder: string
-  items: PickerItem[]
-  selectedId: string | null
-  selectedLabel?: string
-  onSelect: (id: string, item: PickerItem) => void
-  onClear: () => void
-  onSearchChange: (v: string) => void
-  search: string
-  minChars?: number
+   value: ClientResult | null
+   onSelect: (c: ClientResult | null) => void
+   disabled?: boolean
 }) {
-  const [open, setOpen] = useState(false)
-  const showDropdown = open && search.trim().length >= minChars
+   const [search, setSearch] = useState('')
+   const [open, setOpen] = useState(false)
 
-  const filtered = items.filter(item =>
-    item.label.toLowerCase().includes(search.toLowerCase()) ||
-    (item.sub?.toLowerCase().includes(search.toLowerCase()) ?? false)
-  )
+   const { data: results = [] } = useQuery({
+      queryKey: clientKeys.search(search),
+      queryFn: () => searchClients(search),
+      enabled: search.length >= 2,
+      staleTime: 30_000,
+   })
 
-  return (
-    <Field label={label}>
-      {selectedId ? (
-        <div className="flex items-center justify-between h-9 px-3 rounded-md border border-input bg-background text-sm">
-          <div className="flex items-center gap-2 min-w-0">
-            <Check className="size-3.5 text-primary shrink-0" />
-            <span className="truncate">{selectedLabel}</span>
-          </div>
-          <button onClick={onClear} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 ml-2">
-            <X className="size-3.5" />
-          </button>
-        </div>
-      ) : (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-          <input
+   if (value) {
+      return (
+         <div className="flex items-center justify-between h-9 px-3 rounded-md border border-input bg-background text-sm">
+            <div className="flex items-center gap-2 min-w-0">
+               <Check className="size-3.5 text-primary shrink-0" />
+               <span className="truncate">{value.denumire}</span>
+               {value.cif && <span className="text-xs text-muted-foreground shrink-0">{value.cif}</span>}
+            </div>
+            {!disabled && (
+               <button onClick={() => onSelect(null)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 ml-2">
+                  <X className="size-3.5" />
+               </button>
+            )}
+         </div>
+      )
+   }
+
+   return (
+      <div className="relative">
+         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+         <input
             type="text"
             value={search}
-            onChange={e => { onSearchChange(e.target.value); setOpen(true) }}
+            disabled={disabled}
+            onChange={e => { setSearch(e.target.value); setOpen(true) }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder={placeholder}
-            className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          {showDropdown && (
+            placeholder="Minim 2 caractere..."
+            className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+         />
+         {open && search.length >= 2 && (
             <div className="absolute z-10 top-full mt-1 w-full bg-background border border-border rounded-md shadow-md max-h-48 overflow-y-auto">
-              {filtered.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-muted-foreground">Niciun rezultat</p>
-              ) : (
-                filtered.map(item => (
-                  <button
-                    key={item.id}
-                    onMouseDown={() => { onSelect(item.id, item); setOpen(false) }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between gap-2"
-                  >
-                    <span className="truncate">{item.label}</span>
-                    {item.sub && <span className="text-xs text-muted-foreground shrink-0">{item.sub}</span>}
-                  </button>
-                ))
-              )}
+               {results.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">Niciun rezultat</p>
+               ) : (
+                  results.map(r => (
+                     <button
+                        key={r.id}
+                        onMouseDown={() => { onSelect(r as ClientResult); setOpen(false); setSearch('') }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between gap-2"
+                     >
+                        <span className="truncate">{r.denumire}</span>
+                        {r.cif && <span className="text-xs text-muted-foreground shrink-0">{r.cif}</span>}
+                     </button>
+                  ))
+               )}
             </div>
-          )}
-        </div>
-      )}
-    </Field>
-  )
+         )}
+      </div>
+   )
+}
+
+function ContabilPicker({
+   value,
+   onSelect,
+   disabled,
+}: {
+   value: ContabilResult | null
+   onSelect: (c: ContabilResult | null) => void
+   disabled?: boolean
+}) {
+   const [search, setSearch] = useState('')
+   const [open, setOpen] = useState(false)
+
+   const { data: results = [] } = useQuery({
+      queryKey: accountantKeys.search(search),
+      queryFn: () => searchAccountants(search),
+      enabled: search.length >= 2,
+      staleTime: 30_000,
+   })
+
+   if (value) {
+      return (
+         <div className="flex items-center justify-between h-9 px-3 rounded-md border border-input bg-background text-sm">
+            <div className="flex items-center gap-2 min-w-0">
+               <Check className="size-3.5 text-primary shrink-0" />
+               <span className="truncate">{value.denumire}</span>
+            </div>
+            {!disabled && (
+               <button onClick={() => onSelect(null)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 ml-2">
+                  <X className="size-3.5" />
+               </button>
+            )}
+         </div>
+      )
+   }
+
+   return (
+      <div className="relative">
+         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+         <input
+            type="text"
+            value={search}
+            disabled={disabled}
+            onChange={e => { setSearch(e.target.value); setOpen(true) }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            placeholder="Minim 2 caractere..."
+            className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+         />
+         {open && search.length >= 2 && (
+            <div className="absolute z-10 top-full mt-1 w-full bg-background border border-border rounded-md shadow-md max-h-48 overflow-y-auto">
+               {results.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">Niciun rezultat</p>
+               ) : (
+                  results.map(r => (
+                     <button
+                        key={r.id}
+                        onMouseDown={() => { onSelect(r as ContabilResult); setOpen(false); setSearch('') }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                     >
+                        {r.denumire}
+                     </button>
+                  ))
+               )}
+            </div>
+         )}
+      </div>
+   )
+}
+
+interface Props {
+   onClose: () => void
 }
 
 export function CreateContractModal({ onClose }: Props) {
-  const [clientUid, setClientUid] = useState<string | null>(null)
-  const [clientLabel, setClientLabel] = useState('')
-  const [clientSearch, setClientSearch] = useState('')
+   const [client, setClient] = useState<ClientResult | null>(null)
+   const [contabil, setContabil] = useState<ContabilResult | null>(null)
+   const [tarifLunar, setTarifLunar] = useState('')
+   const [moneda, setMoneda] = useState<Moneda>('RON')
+   const [esteActiv, setEsteActiv] = useState(true)
+   const [dataInceput, setDataInceput] = useState(() => new Date().toISOString().split('T')[0])
+   const [dataSfarsit, setDataSfarsit] = useState('')
 
-  const [contabilUid, setContabilUid] = useState<string | null>(null)
-  const [contabilLabel, setContabilLabel] = useState('')
-  const [contabilSearch, setContabilSearch] = useState('')
+   const queryClient = useQueryClient()
 
-  const [tarifLunar, setTarifLunar] = useState('')
-  const [moneda, setMoneda] = useState<Moneda>('RON')
-  const [dataInceput, setDataInceput] = useState(() => new Date().toISOString().split('T')[0])
+   const mutation = useMutation({
+      ...createContractOptions,
+      onSuccess: () => {
+         queryClient.invalidateQueries({ queryKey: contractKeys.all })
+         toast.success('Contract creat cu succes.')
+         onClose()
+      },
+   })
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-background border border-border rounded-xl shadow-xl w-full max-w-md flex flex-col">
-        <div className="flex items-start justify-between px-5 py-4 border-b border-border">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Contract nou</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Asociază un client cu un contabil</p>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mt-0.5">
-            <X className="size-4" />
-          </button>
-        </div>
+   const canCreate = !!client && !!tarifLunar && Number(tarifLunar) > 0 && !!dataInceput
 
-        <div className="px-5 py-4 flex flex-col gap-4">
-          <SearchPicker
-            label="Client *"
-            placeholder="Minim 2 caractere..."
-            items={MOCK_CLIENT_ITEMS}
-            selectedId={clientUid}
-            selectedLabel={clientLabel}
-            search={clientSearch}
-            onSearchChange={setClientSearch}
-            onSelect={(id, item) => { setClientUid(id); setClientLabel(item.label) }}
-            onClear={() => { setClientUid(null); setClientLabel(''); setClientSearch('') }}
-          />
+   function handleClose() {
+      if (mutation.isPending) return
+      onClose()
+   }
 
-          <SearchPicker
-            label="Contabil"
-            placeholder="Minim 2 caractere..."
-            items={MOCK_CONTABIL_ITEMS}
-            selectedId={contabilUid}
-            selectedLabel={contabilLabel}
-            search={contabilSearch}
-            onSearchChange={setContabilSearch}
-            onSelect={(id, item) => { setContabilUid(id); setContabilLabel(item.label) }}
-            onClear={() => { setContabilUid(null); setContabilLabel(''); setContabilSearch('') }}
-          />
+   function handleCreate() {
+      if (!client || !canCreate) return
+      mutation.mutate({
+         client_id: client.id,
+         client_uid: client.user_id,
+         contabil_id: contabil?.id ?? null,
+         contabil_uid: contabil?.user_id ?? null,
+         tarif_lunar: Number(tarifLunar),
+         moneda,
+         este_activ: esteActiv,
+         data_inceput: dataInceput,
+         data_sfarsit: dataSfarsit || null,
+      })
+   }
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Tarif lunar *">
-              <Input
-                type="number"
-                min="0"
-                value={tarifLunar}
-                onChange={e => setTarifLunar(e.target.value)}
-                placeholder="ex: 500"
-              />
-            </Field>
-            <Field label="Monedă">
-              <select
-                value={moneda}
-                onChange={e => setMoneda(e.target.value as Moneda)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {(['RON', 'EUR', 'USD', 'GBP', 'CHF'] as Moneda[]).map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
+   return (
+      <div
+         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+         onClick={handleClose}
+         onKeyDown={e => { if (e.key === 'Escape') handleClose() }}
+      >
+         <div
+            className="bg-background border border-border rounded-xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+         >
+            {/* Header */}
+            <div className="flex items-start justify-between px-5 py-4 border-b border-border shrink-0">
+               <div>
+                  <h2 className="text-sm font-semibold text-foreground">Contract nou</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Asociază un client cu un contabil</p>
+               </div>
+               <button
+                  onClick={handleClose}
+                  disabled={mutation.isPending}
+                  className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 disabled:opacity-40 disabled:pointer-events-none"
+               >
+                  <X className="size-4" />
+               </button>
+            </div>
 
-          <Field label="Dată început *">
-            <Input type="date" value={dataInceput} onChange={e => setDataInceput(e.target.value)} />
-          </Field>
-        </div>
+            {/* Content */}
+            <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-4">
+               <Field label="Client" required>
+                  <ClientPicker value={client} onSelect={setClient} disabled={mutation.isPending} />
+               </Field>
 
-        <div className="flex gap-2 px-5 py-4 border-t border-border">
-          <Button variant="outline" className="flex-1" onClick={onClose}>
-            Anulează
-          </Button>
-          <Button
-            className="flex-1"
-            onClick={onClose}
-            disabled={!clientUid || !tarifLunar}
-          >
-            Creează contract
-          </Button>
-        </div>
+               <Field label="Contabil">
+                  <ContabilPicker value={contabil} onSelect={setContabil} disabled={mutation.isPending} />
+               </Field>
+
+               <div className="grid grid-cols-2 gap-3">
+                  <Field label="Tarif lunar" required>
+                     <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={tarifLunar}
+                        onChange={e => setTarifLunar(e.target.value)}
+                        placeholder="ex: 500"
+                        disabled={mutation.isPending}
+                     />
+                  </Field>
+                  <Field label="Monedă">
+                     <select
+                        value={moneda}
+                        onChange={e => setMoneda(e.target.value as Moneda)}
+                        disabled={mutation.isPending}
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                     >
+                        {MONEDE.map(m => <option key={m} value={m}>{m}</option>)}
+                     </select>
+                  </Field>
+               </div>
+
+               <div className="grid grid-cols-2 gap-3">
+                  <Field label="Dată început" required>
+                     <Input
+                        type="date"
+                        value={dataInceput}
+                        onChange={e => setDataInceput(e.target.value)}
+                        disabled={mutation.isPending}
+                     />
+                  </Field>
+                  <Field label="Dată sfârșit">
+                     <Input
+                        type="date"
+                        value={dataSfarsit}
+                        onChange={e => setDataSfarsit(e.target.value)}
+                        disabled={mutation.isPending}
+                     />
+                  </Field>
+               </div>
+
+               <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                     type="checkbox"
+                     checked={esteActiv}
+                     onChange={e => setEsteActiv(e.target.checked)}
+                     disabled={mutation.isPending}
+                     className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                  <span className="text-sm text-foreground">Contract activ</span>
+               </label>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-2 px-5 py-4 border-t border-border shrink-0">
+               <Button variant="outline" className="flex-1" onClick={handleClose} disabled={mutation.isPending}>
+                  Anulează
+               </Button>
+               <Button
+                  className="flex-1"
+                  onClick={handleCreate}
+                  disabled={!canCreate || mutation.isPending}
+                  loading={mutation.isPending}
+               >
+                  {mutation.isPending ? 'Se creează...' : 'Creează contract'}
+               </Button>
+            </div>
+         </div>
       </div>
-    </div>
-  )
+   )
 }

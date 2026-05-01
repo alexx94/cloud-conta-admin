@@ -27,7 +27,7 @@ export const updateAccountant = async (id: number, patch: AccountantUpdatePatch)
 export const searchAccountants = async (term: string) => {
    const { data, error } = await supabase
       .from('CONTABIL')
-      .select('id, denumire, email')
+      .select('id, denumire, email, user_id')
       .ilike('denumire', `%${term}%`)
       .order('denumire', { ascending: true })
       .limit(6)
