@@ -12,6 +12,7 @@ export const clientKeys = {
    counts: () => [...clientKeys.all, 'count'] as const,
    lists: () => [...clientKeys.all, 'list'] as const,
    list: (filters: ClientListFilter) => [...clientKeys.lists(), filters] as const,
+   search: (term: string) => [...clientKeys.all, 'search', term] as const,
 };
 
 export const clientCountOptions = queryOptions({
