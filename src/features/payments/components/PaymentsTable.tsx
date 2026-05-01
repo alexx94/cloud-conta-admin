@@ -1,0 +1,473 @@
+import { useState } from 'react'
+import { Fragment } from 'react'
+import { Building2, FileText, ChevronDown, Pencil, Trash2, Check } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { SearchPicker, type PickerOption } from '@/components/ui/search-picker'
+import { Pagination } from '@/components/ui/pagination'
+import { cn } from '@/lib/utils'
+import { paymentListOptions, clientPickerOptions } from '@/features/payments/queries'
+import { PAGE_SIZE } from '@/features/payments/api/payments'
+import type {
+  PaymentStatusFilter,
+  PaymentTipFilter,
+  PaymentListFilter,
+  PaymentRow,
+  StatusPlata,
+  TipPlata,
+} from '@/features/payments/types'
+import { EditPaymentModal } from './EditPaymentModal'
+
+const CURRENT_YEAR = new Date().getFullYear()
+const YEARS = Array.from({ length: CURRENT_YEAR - 2025 + 2 }, (_, i) => 2025 + i)
+
+const MONTHS = [
+  { id: 1, short: 'Ian' }, { id: 2, short: 'Feb' }, { id: 3, short: 'Mar' },
+  { id: 4, short: 'Apr' }, { id: 5, short: 'Mai' }, { id: 6, short: 'Iun' },
+  { id: 7, short: 'Iul' }, { id: 8, short: 'Aug' }, { id: 9, short: 'Sep' },
+  { id: 10, short: 'Oct' }, { id: 11, short: 'Nov' }, { id: 12, short: 'Dec' },
+]
+
+const STATUS_FILTERS: { id: PaymentStatusFilter; label: string }[] = [
+  { id: 'all', label: 'Toate' },
+  { id: 'in_lucru', label: 'În lucru' },
+  { id: 'depasit', label: 'Depășite' },
+  { id: 'platit', label: 'Plătite' },
+  { id: 'anulat', label: 'Anulate' },
+]
+
+const TIP_OPTIONS: { value: PaymentTipFilter; label: string }[] = [
+  { value: 'all', label: 'Toate tipurile' },
+  { value: 'contractuala', label: 'Contractuale' },
+  { value: 'manuala', label: 'Manuale' },
+  { value: 'penalizare', label: 'Penalizări' },
+]
+
+const statusConfig: Record<StatusPlata, { label: string; variant: 'success' | 'warning' | 'destructive' | 'outline' }> = {
+  platit: { label: 'Plătit', variant: 'success' },
+  in_lucru: { label: 'În lucru', variant: 'warning' },
+  depasit: { label: 'Depășit', variant: 'destructive' },
+  anulat: { label: 'Anulat', variant: 'outline' },
+}
+
+const tipConfig: Record<TipPlata, { label: string }> = {
+  contractuala: { label: 'Contractuală' },
+  manuala: { label: 'Manuală' },
+  penalizare: { label: 'Penalizare' },
+}
+
+function formatRON(amount: number) {
+  return new Intl.NumberFormat('ro-RO', {
+    style: 'currency', currency: 'RON', maximumFractionDigits: 0,
+  }).format(amount)
+}
+
+function formatDateShort(date: string | null) {
+  if (!date) return '—'
+  return new Date(date).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })
+}
+
+function formatDateFull(date: string | null) {
+  if (!date) return '—'
+  return new Date(date).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function TipDropdown({ value, onChange }: { value: PaymentTipFilter; onChange: (v: PaymentTipFilter) => void }) {
+  const [open, setOpen] = useState(false)
+  const current = TIP_OPTIONS.find(o => o.value === value)!
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="h-9 flex items-center gap-1.5 px-3 rounded-md border border-input bg-background text-sm hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {current.label}
+        <ChevronDown className="size-3.5 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute z-10 top-full mt-1 left-0 bg-background border border-border rounded-md shadow-md min-w-full py-1">
+          {TIP_OPTIONS.map(o => (
+            <button
+              key={o.value}
+              onMouseDown={() => { onChange(o.value); setOpen(false) }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors flex items-center justify-between gap-4"
+            >
+              <span className={o.value === value ? 'text-primary font-medium' : ''}>{o.label}</span>
+              {o.value === value && <Check className="size-3.5 text-primary" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function PaymentsTable() {
+  const [page, setPage] = useState(0)
+  const [year, setYear] = useState(CURRENT_YEAR)
+  const [month, setMonth] = useState<number | null>(null)
+  const [status, setStatus] = useState<PaymentStatusFilter>('all')
+  const [tip, setTip] = useState<PaymentTipFilter>('all')
+  const [selectedClient, setSelectedClient] = useState<PickerOption | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [editingPayment, setEditingPayment] = useState<PaymentRow | null>(null)
+  const [deletingPayment, setDeletingPayment] = useState<PaymentRow | null>(null)
+
+  const filter: PaymentListFilter = {
+    page, year, month, status, tip, clientId: selectedClient?.id ?? null,
+  }
+
+  const { data, isFetching } = useQuery(paymentListOptions(filter))
+  const items = data?.items ?? []
+  const total = data?.count ?? 0
+  const pageCount = Math.ceil(total / PAGE_SIZE)
+
+  const hasActiveFilters = month !== null || status !== 'all' || tip !== 'all' || selectedClient !== null
+  const emptyMessage = hasActiveFilters
+    ? 'Nicio plată pentru filtrele selectate.'
+    : 'Nicio plată înregistrată.'
+
+  function resetPage() { setPage(0); setExpandedId(null) }
+  function handleYearChange(y: number) { setYear(y); setMonth(null); resetPage() }
+  function handleMonthChange(m: number | null) { setMonth(m); resetPage() }
+  function handleStatusChange(s: PaymentStatusFilter) { setStatus(s); resetPage() }
+  function handleTipChange(t: PaymentTipFilter) { setTip(t); resetPage() }
+  function handleClientChange(opt: PickerOption | null) { setSelectedClient(opt); resetPage() }
+  function handlePageChange(p: number) { setPage(p); setExpandedId(null) }
+  function toggleExpand(payment: PaymentRow) {
+    if (!payment.nota) return
+    setExpandedId(id => id === payment.id ? null : payment.id)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Month + Year */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0 pb-0.5">
+          <button
+            onClick={() => handleMonthChange(null)}
+            className={cn(
+              'shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+              month === null
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            Toate
+          </button>
+          {MONTHS.map(m => (
+            <button
+              key={m.id}
+              onClick={() => handleMonthChange(m.id)}
+              className={cn(
+                'shrink-0 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                month === m.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {m.short}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {YEARS.map(y => (
+            <button
+              key={y}
+              onClick={() => handleYearChange(y)}
+              className={cn(
+                'px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                year === y
+                  ? 'bg-secondary text-secondary-foreground border border-border'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={cn(
+        'bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-opacity',
+        isFetching && 'opacity-60',
+      )}>
+        {/* Status + Tip + Client filters */}
+        <div className="flex flex-col gap-2 px-4 py-3 border-b border-border bg-muted/30">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-1">
+              {STATUS_FILTERS.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => handleStatusChange(f.id)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                    status === f.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 sm:ml-auto flex-wrap">
+              <TipDropdown value={tip} onChange={handleTipChange} />
+              <SearchPicker
+                value={selectedClient}
+                onChange={handleClientChange}
+                searchPlaceholder="Caută client..."
+                queryOptions={clientPickerOptions}
+                className="w-52"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40 [box-shadow:inset_0_1px_0_0_hsl(var(--primary)/0.08)]">
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-[28%]">Client</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-24">Contract</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-28">Sumă</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden lg:table-cell w-28">Date</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tip</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                <th className="w-16" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-sm text-muted-foreground">
+                    {emptyMessage}
+                  </td>
+                </tr>
+              ) : (
+                items.map(payment => {
+                  const isExpanded = expandedId === payment.id
+                  const hasNota = !!payment.nota
+                  return (
+                    <Fragment key={payment.id}>
+                      <tr
+                        onClick={() => toggleExpand(payment)}
+                        className={cn(
+                          'group border-l-2 transition-colors',
+                          hasNota ? 'cursor-pointer' : '',
+                          isExpanded
+                            ? 'border-l-primary/50 bg-muted/20'
+                            : 'border-l-transparent hover:bg-muted/30',
+                        )}
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Building2 className="size-3.5 text-muted-foreground shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground truncate">
+                                {payment.client_denumire ?? <span className="italic text-muted-foreground">—</span>}
+                              </p>
+                              {payment.client_cif && (
+                                <p className="text-xs text-muted-foreground">{payment.client_cif}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <FileText className="size-3 shrink-0" />
+                            <span className="text-xs">#{payment.contract_id ?? '—'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 tabular-nums font-medium">
+                          {formatRON(payment.suma)}
+                        </td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-muted-foreground">
+                              {formatDateShort(payment.data_emitere)}
+                            </span>
+                            <span className={cn(
+                              'text-xs font-medium',
+                              payment.status === 'depasit'
+                                ? 'text-destructive'
+                                : 'text-muted-foreground',
+                            )}>
+                              {formatDateShort(payment.data_scadenta)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline">{tipConfig[payment.tip].label}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant={statusConfig[payment.status].variant}>
+                              {statusConfig[payment.status].label}
+                            </Badge>
+                            {hasNota && (
+                              <ChevronDown className={cn(
+                                'size-3.5 text-muted-foreground transition-transform',
+                                isExpanded && 'rotate-180',
+                              )} />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div
+                            onClick={e => e.stopPropagation()}
+                            className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <button
+                              onClick={() => setEditingPayment(payment)}
+                              title="Editează"
+                              className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingPayment(payment)}
+                              title="Șterge"
+                              className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {hasNota && isExpanded && (
+                        <tr className="border-l-2 border-l-primary/30 bg-muted/10">
+                          <td colSpan={7} className="px-6 py-2.5">
+                            <p className="text-xs text-muted-foreground italic">{payment.nota}</p>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-border/60">
+          {items.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {emptyMessage}
+            </div>
+          ) : (
+            items.map(payment => {
+              const isExpanded = expandedId === payment.id
+              const hasNota = !!payment.nota
+              return (
+                <div key={payment.id} className={cn('border-l-2 transition-colors', isExpanded ? 'border-l-primary/50' : 'border-l-transparent')}>
+                  <div
+                    onClick={() => toggleExpand(payment)}
+                    className={cn('flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors', hasNota && 'cursor-pointer')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-foreground truncate">
+                          {payment.client_denumire ?? <span className="italic text-muted-foreground">—</span>}
+                        </p>
+                        <Badge variant={statusConfig[payment.status].variant} className="shrink-0">
+                          {statusConfig[payment.status].label}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1">
+                        <span className="text-xs text-muted-foreground">#{payment.contract_id ?? '—'}</span>
+                        <span className="text-sm font-medium tabular-nums">{formatRON(payment.suma)}</span>
+                        <Badge variant="outline">{tipConfig[payment.tip].label}</Badge>
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                        <span>{formatDateShort(payment.data_emitere)}</span>
+                        <span className={cn(payment.status === 'depasit' && 'text-destructive font-medium')}>
+                          Scad. {formatDateShort(payment.data_scadenta)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+                      <button
+                        onClick={e => { e.stopPropagation(); setEditingPayment(payment) }}
+                        className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setDeletingPayment(payment) }}
+                        className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                      {hasNota && (
+                        <ChevronDown className={cn('size-3.5 text-muted-foreground transition-transform ml-0.5', isExpanded && 'rotate-180')} />
+                      )}
+                    </div>
+                  </div>
+                  {hasNota && isExpanded && (
+                    <div className="mx-4 mb-3 px-3 py-2 rounded-md border-l-2 border-muted-foreground/20 bg-muted/20">
+                      <p className="text-xs text-muted-foreground italic">{payment.nota}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {total > 0 && pageCount <= 1 && (
+          <div className="px-4 py-3 border-t border-border text-center">
+            <span className="text-xs text-muted-foreground">
+              {total} {total === 1 ? 'plată' : 'plăți'}
+            </span>
+          </div>
+        )}
+
+        <Pagination
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          pageSize={PAGE_SIZE}
+          onPageChange={handlePageChange}
+        />
+      </div>
+
+      {editingPayment && (
+        <EditPaymentModal payment={editingPayment} onClose={() => setEditingPayment(null)} />
+      )}
+
+      {deletingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background border border-border rounded-xl shadow-xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Șterge plata</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {deletingPayment.client_denumire && (
+                  <span className="font-medium text-foreground">{deletingPayment.client_denumire} — </span>
+                )}
+                {formatRON(deletingPayment.suma)} · {formatDateFull(deletingPayment.data_scadenta)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">Această acțiune nu poate fi anulată.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDeletingPayment(null)}>
+                Anulează
+              </Button>
+              <Button
+                className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => setDeletingPayment(null)}
+              >
+                Șterge
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
