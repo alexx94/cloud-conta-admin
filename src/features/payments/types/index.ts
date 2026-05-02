@@ -47,5 +47,23 @@ export type PaymentUpdatePatch = {
   tip: TipPlata
   status: StatusPlata
   data_scadenta: string
+  nota?: string | null
   modified_at: string
+}
+
+export type PaymentCreateInput = {
+  contract_servicii: number
+  suma: number
+  tip: TipPlata
+  status: StatusPlata
+  data_emitere: string
+  data_scadenta: string
+  nota?: string | null
+}
+
+export type ClientContract = {
+  id: number
+  tarif_lunar: number
+  moneda: string
+  data_inceput: string
 }

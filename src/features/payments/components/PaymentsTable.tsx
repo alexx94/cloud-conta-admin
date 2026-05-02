@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { Fragment } from 'react'
-import { Building2, FileText, ChevronDown, Pencil, Trash2, Check } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { Building2, FileText, ChevronDown, Pencil, Trash2, Check, MoreVertical } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SearchPicker, type PickerOption } from '@/components/ui/search-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { cn } from '@/lib/utils'
-import { paymentListOptions, clientPickerOptions } from '@/features/payments/queries'
+import { paymentListOptions, clientPickerOptions, paymentKeys } from '@/features/payments/queries'
+import { deletePaymentOptions } from '@/features/payments/api/payment-mutations'
 import { PAGE_SIZE } from '@/features/payments/api/payments'
 import type {
   PaymentStatusFilter,
@@ -73,6 +75,37 @@ function formatDateFull(date: string | null) {
   return new Date(date).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function YearDropdown({ year, onChange }: { year: number; onChange: (y: number) => void }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="h-7 flex items-center gap-1.5 px-2.5 rounded-md border border-primary/40 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {year}
+        <ChevronDown className="size-3 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-10 top-full mt-1 right-0 bg-background border border-border rounded-md shadow-md min-w-[72px] py-1">
+          {YEARS.map(y => (
+            <button
+              key={y}
+              onMouseDown={() => { onChange(y); setOpen(false) }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors flex items-center justify-between gap-3"
+            >
+              <span className={y === year ? 'text-primary font-semibold' : ''}>{y}</span>
+              {y === year && <Check className="size-3.5 text-primary shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TipDropdown({ value, onChange }: { value: PaymentTipFilter; onChange: (v: PaymentTipFilter) => void }) {
   const [open, setOpen] = useState(false)
   const current = TIP_OPTIONS.find(o => o.value === value)!
@@ -105,6 +138,122 @@ function TipDropdown({ value, onChange }: { value: PaymentTipFilter; onChange: (
   )
 }
 
+function DeletePaymentDialog({
+  payment,
+  isPending,
+  onClose,
+  onConfirm,
+}: {
+  payment: PaymentRow
+  isPending: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={() => { if (!isPending) onClose() }}
+    >
+      <div
+        className="bg-background border border-border rounded-xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-5 pt-5 pb-4">
+          <div className="flex items-start gap-3">
+            <div className="flex items-center justify-center size-9 rounded-full bg-destructive/10 shrink-0">
+              <Trash2 className="size-4 text-destructive" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Șterge plata definitiv</p>
+              {payment.client_denumire && (
+                <p className="text-xs text-muted-foreground mt-0.5">{payment.client_denumire}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-muted-foreground">Sumă</span>
+              <span className="text-sm font-semibold tabular-nums">{formatRON(payment.suma)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-muted-foreground">Scadență</span>
+              <span className="text-sm">{formatDateFull(payment.data_scadenta)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-muted-foreground">Tip</span>
+              <span className="text-sm">{tipConfig[payment.tip].label}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-muted-foreground">Status</span>
+              <Badge variant={statusConfig[payment.status].variant}>
+                {statusConfig[payment.status].label}
+              </Badge>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground mt-3">
+            Această acțiune este <span className="font-semibold text-destructive">permanentă</span> și nu poate fi anulată.
+          </p>
+        </div>
+        <div className="flex gap-2 px-5 pb-5">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={onClose}
+            disabled={isPending}
+          >
+            Anulează
+          </Button>
+          <Button
+            className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={onConfirm}
+            disabled={isPending}
+            loading={isPending}
+          >
+            {isPending ? 'Se șterge...' : 'Șterge definitiv'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RowActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      {open && (
+        <div className="absolute z-20 right-0 top-full mt-1 bg-background border border-border rounded-md shadow-md py-1 min-w-[130px]">
+          <button
+            onMouseDown={() => { onEdit(); setOpen(false) }}
+            className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-muted transition-colors"
+          >
+            <Pencil className="size-3.5 text-muted-foreground" />
+            Editează
+          </button>
+          <div className="my-1 h-px bg-border" />
+          <button
+            onMouseDown={() => { onDelete(); setOpen(false) }}
+            className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="size-3.5" />
+            Șterge
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function PaymentsTable() {
   const [page, setPage] = useState(0)
   const [year, setYear] = useState(CURRENT_YEAR)
@@ -115,6 +264,17 @@ export function PaymentsTable() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [editingPayment, setEditingPayment] = useState<PaymentRow | null>(null)
   const [deletingPayment, setDeletingPayment] = useState<PaymentRow | null>(null)
+
+  const queryClient = useQueryClient()
+
+  const deleteMutation = useMutation({
+    ...deletePaymentOptions,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all })
+      toast.success('Plată ștearsă.')
+      setDeletingPayment(null)
+    },
+  })
 
   const filter: PaymentListFilter = {
     page, year, month, status, tip, clientId: selectedClient?.id ?? null,
@@ -173,22 +333,7 @@ export function PaymentsTable() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {YEARS.map(y => (
-            <button
-              key={y}
-              onClick={() => handleYearChange(y)}
-              className={cn(
-                'px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
-                year === y
-                  ? 'bg-secondary text-secondary-foreground border border-border'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              {y}
-            </button>
-          ))}
-        </div>
+        <YearDropdown year={year} onChange={handleYearChange} />
       </div>
 
       <div className={cn(
@@ -238,7 +383,7 @@ export function PaymentsTable() {
                 <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden lg:table-cell w-28">Date</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tip</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
-                <th className="w-16" />
+                <th className="w-10" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -317,26 +462,11 @@ export function PaymentsTable() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div
-                            onClick={e => e.stopPropagation()}
-                            className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <button
-                              onClick={() => setEditingPayment(payment)}
-                              title="Editează"
-                              className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                            >
-                              <Pencil className="size-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeletingPayment(payment)}
-                              title="Șterge"
-                              className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </div>
+                        <td className="px-2 py-3">
+                          <RowActionsMenu
+                            onEdit={() => setEditingPayment(payment)}
+                            onDelete={() => setDeletingPayment(payment)}
+                          />
                         </td>
                       </tr>
                       {hasNota && isExpanded && (
@@ -391,22 +521,14 @@ export function PaymentsTable() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
-                      <button
-                        onClick={e => { e.stopPropagation(); setEditingPayment(payment) }}
-                        className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); setDeletingPayment(payment) }}
-                        className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
                       {hasNota && (
-                        <ChevronDown className={cn('size-3.5 text-muted-foreground transition-transform ml-0.5', isExpanded && 'rotate-180')} />
+                        <ChevronDown className={cn('size-3.5 text-muted-foreground transition-transform', isExpanded && 'rotate-180')} />
                       )}
+                      <RowActionsMenu
+                        onEdit={() => setEditingPayment(payment)}
+                        onDelete={() => setDeletingPayment(payment)}
+                      />
                     </div>
                   </div>
                   {hasNota && isExpanded && (
@@ -442,31 +564,12 @@ export function PaymentsTable() {
       )}
 
       {deletingPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-background border border-border rounded-xl shadow-xl w-full max-w-sm p-6 flex flex-col gap-4">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Șterge plata</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {deletingPayment.client_denumire && (
-                  <span className="font-medium text-foreground">{deletingPayment.client_denumire} — </span>
-                )}
-                {formatRON(deletingPayment.suma)} · {formatDateFull(deletingPayment.data_scadenta)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">Această acțiune nu poate fi anulată.</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setDeletingPayment(null)}>
-                Anulează
-              </Button>
-              <Button
-                className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => setDeletingPayment(null)}
-              >
-                Șterge
-              </Button>
-            </div>
-          </div>
-        </div>
+        <DeletePaymentDialog
+          payment={deletingPayment}
+          isPending={deleteMutation.isPending}
+          onClose={() => setDeletingPayment(null)}
+          onConfirm={() => deleteMutation.mutate(deletingPayment.id)}
+        />
       )}
     </div>
   )

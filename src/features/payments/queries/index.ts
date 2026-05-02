@@ -6,6 +6,7 @@ import {
   getPayments,
   getPaymentCount,
   getPaymentStats,
+  getClientContracts,
 } from '@/features/payments/api/payments'
 import type { PaymentListFilter, PaymentCountFilter } from '@/features/payments/types'
 
@@ -19,6 +20,8 @@ export const paymentKeys = {
   count: (f: PaymentCountFilter) => [...paymentKeys.counts(), f] as const,
   stats: (dateFrom: string, dateTo: string) =>
     [...paymentKeys.all, 'stats', { dateFrom, dateTo }] as const,
+  clientContracts: (clientId: number) =>
+    [...paymentKeys.all, 'client-contracts', clientId] as const,
 }
 
 export const paymentListOptions = (filters: PaymentListFilter) =>
@@ -54,3 +57,11 @@ export function clientPickerOptions(term: string) {
       data.map(r => ({ id: r.id, label: r.denumire, sub: r.cif })),
   }
 }
+
+export const clientContractOptions = (clientId: number | null) =>
+  queryOptions({
+    queryKey: [...paymentKeys.all, 'client-contracts', clientId] as const,
+    queryFn: () => getClientContracts(clientId!),
+    enabled: clientId !== null,
+    staleTime: 30_000,
+  })

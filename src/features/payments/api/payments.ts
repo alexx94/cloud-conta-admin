@@ -4,6 +4,7 @@ import type {
   PaymentCountFilter,
   PaymentRow,
   PaymentStats,
+  ClientContract,
 } from '@/features/payments/types'
 
 export const PAGE_SIZE = 20
@@ -89,6 +90,16 @@ export const getPaymentStats = async (dateFrom: string, dateTo: string): Promise
   })
   if (error) throw new Error(error.message)
   return (data ?? { total_incasat: 0, total_neincasat: 0, total_depasit: 0 }) as PaymentStats
+}
+
+export const getClientContracts = async (clientId: number): Promise<ClientContract[]> => {
+  const { data, error } = await supabase
+    .from('CONTRACT_SERVICII')
+    .select('id, tarif_lunar, moneda, data_inceput')
+    .eq('client_id', clientId)
+    .eq('este_activ', true)
+  if (error) throw new Error(error.message)
+  return data ?? []
 }
 
 export const getPaymentCount = async (filters: PaymentCountFilter): Promise<number> => {
