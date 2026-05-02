@@ -11,6 +11,7 @@ import { clientListOptions } from '../queries/clients'
 import { getClientsLastCursor, PAGE_SIZE } from '../api/clients'
 import { clientCountOptions } from '@/shared/api/clients/queries'
 import { useDebounce } from '@/hooks/useDebounce'
+import { Route } from '@/routes/_layout/users'
 import type { Database } from '@/types/database'
 
 type Client = Database['public']['Tables']['CLIENT']['Row']
@@ -56,12 +57,13 @@ function DatePair({ created, modified }: { created: string; modified: string }) 
 }
 
 export function ClientsTab() {
+  const { add } = Route.useSearch()
   const [search, setSearch] = useState('')
   const [cursor, setCursor] = useState<number | undefined>(undefined)
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
   const [selected, setSelected] = useState<Client | null>(null)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
+  const [showCreate, setShowCreate] = useState(() => add === true)
 
   const debouncedSearch = useDebounce(search, 300)
 

@@ -10,6 +10,13 @@ interface StatCardProps {
   className?: string
 }
 
+const accentVariants = {
+  default: 'border-l-primary',
+  success: 'border-l-green-500',
+  warning: 'border-l-amber-500',
+  destructive: 'border-l-destructive',
+}
+
 const iconVariants = {
   default: 'bg-primary/10 text-primary',
   success: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
@@ -19,16 +26,22 @@ const iconVariants = {
 
 export function StatCard({ label, value, icon: Icon, trend, variant = 'default', className }: StatCardProps) {
   return (
-    <div className={cn('bg-card border border-border rounded-xl p-5 flex flex-col gap-3', className)}>
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
-        <div className={cn('size-8 rounded-lg flex items-center justify-center', iconVariants[variant])}>
-          <Icon className="size-4" />
+    <div className={cn(
+      'bg-card border border-border border-l-4 rounded-xl p-5 flex flex-col gap-4',
+      accentVariants[variant],
+      className,
+    )}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground leading-none pt-0.5">
+          {label}
+        </span>
+        <div className={cn('size-9 rounded-xl flex items-center justify-center shrink-0', iconVariants[variant])}>
+          <Icon className="size-[18px]" />
         </div>
       </div>
-      <div className="flex items-end justify-between gap-2">
-        <p className="text-2xl font-semibold text-foreground leading-none">{value}</p>
-        {trend && <p className="text-xs text-muted-foreground mb-0.5">{trend}</p>}
+      <div>
+        <p className="text-3xl font-bold text-foreground leading-none tracking-tight">{value}</p>
+        {trend && <p className="text-xs text-muted-foreground mt-2">{trend}</p>}
       </div>
     </div>
   )

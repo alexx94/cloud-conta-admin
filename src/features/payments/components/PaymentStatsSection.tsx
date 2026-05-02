@@ -48,9 +48,9 @@ export function PaymentStatsSection() {
   const trendLabel = PERIOD_OPTIONS.find(p => p.id === period)!.trend
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-foreground">Situație plăți</h2>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Situație plăți</p>
         <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50">
           {PERIOD_OPTIONS.map(p => (
             <button

@@ -5,6 +5,7 @@ import { z } from 'zod'
 export const Route = createFileRoute('/_layout/users')({
   validateSearch: z.object({
     tab: z.enum(['clients', 'accountants']).default('clients'),
+    add: z.boolean().optional(),
   }),
   component: UsersPage,
 })
