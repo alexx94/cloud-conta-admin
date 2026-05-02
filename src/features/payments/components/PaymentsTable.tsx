@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { paymentListOptions, clientPickerOptions, paymentKeys } from '@/features/payments/queries'
 import { deletePaymentOptions } from '@/features/payments/api/payment-mutations'
 import { PAGE_SIZE } from '@/features/payments/api/payments'
+import { focusInitialModalControl, handleModalKeyboard } from '@/shared/modal-keyboard'
 import type {
   PaymentStatusFilter,
   PaymentTipFilter,
@@ -149,14 +150,20 @@ function DeletePaymentDialog({
   onClose: () => void
   onConfirm: () => void
 }) {
+  function handleClose() {
+    if (isPending) return
+    onClose()
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={() => { if (!isPending) onClose() }}
+      onClick={handleClose}
     >
       <div
         className="bg-background border border-border rounded-xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => handleModalKeyboard(e, handleClose)}
       >
         <div className="px-5 pt-5 pb-4">
           <div className="flex items-start gap-3">
@@ -200,8 +207,9 @@ function DeletePaymentDialog({
           <Button
             variant="outline"
             className="flex-1"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isPending}
+            ref={focusInitialModalControl}
           >
             Anulează
           </Button>

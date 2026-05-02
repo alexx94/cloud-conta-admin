@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { updatePaymentOptions } from '@/features/payments/api/payment-mutations'
 import { paymentKeys } from '@/features/payments/queries'
 import type { PaymentRow, StatusPlata, TipPlata } from '@/features/payments/types'
+import { focusInitialModalControl, handleModalKeyboard } from '@/shared/modal-keyboard'
 
 export type { PaymentRow }
 
@@ -96,6 +97,7 @@ export function EditPaymentModal({ payment, onClose }: Props) {
       <div
         className="bg-background border border-border rounded-xl shadow-xl w-full max-w-sm flex flex-col"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => handleModalKeyboard(e, handleClose)}
       >
         <div className="flex items-start justify-between px-5 py-4 border-b border-border">
           <div>
@@ -122,7 +124,7 @@ export function EditPaymentModal({ payment, onClose }: Props) {
                 value={suma}
                 onChange={e => setSuma(e.target.value)}
                 disabled={mutation.isPending}
-                autoFocus
+                ref={focusInitialModalControl}
               />
             </Field>
             <Field label="Scadență">
