@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -913,6 +913,50 @@ export type Database = {
           },
         ]
       }
+      SITUATIE_LUNARA: {
+        Row: {
+          an: number
+          cale_fisier: string
+          client_id: number
+          created_at: string
+          id: number
+          luna: number
+          modified_at: string | null
+          tip_document: Database["public"]["Enums"]["tip_document_contabil"]
+          uploaded_by: string | null
+        }
+        Insert: {
+          an: number
+          cale_fisier: string
+          client_id: number
+          created_at?: string
+          id?: number
+          luna: number
+          modified_at?: string | null
+          tip_document: Database["public"]["Enums"]["tip_document_contabil"]
+          uploaded_by?: string | null
+        }
+        Update: {
+          an?: number
+          cale_fisier?: string
+          client_id?: number
+          created_at?: string
+          id?: number
+          luna?: number
+          modified_at?: string | null
+          tip_document?: Database["public"]["Enums"]["tip_document_contabil"]
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "SITUATIE_LUNARA_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "CLIENT"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       STORNARE: {
         Row: {
           created_at: string
@@ -1147,6 +1191,11 @@ export type Database = {
         }[]
       }
       get_next_numar_factura: { Args: { p_serie_id: number }; Returns: number }
+      get_payment_stats: {
+        Args: { p_date_from: string; p_date_to: string }
+        Returns: Json
+      }
+      get_plati_an_stats: { Args: { p_an: number }; Returns: Json }
     }
     Enums: {
       app_role: "contabil_admin" | "client_admin" | "admin"
@@ -1189,6 +1238,17 @@ export type Database = {
         | "D700"
         | "D112"
         | "D394"
+      tip_document_contabil:
+        | "balanta"
+        | "bilant"
+        | "jurnal_cumparari"
+        | "jurnal_vanzari"
+        | "registru_jurnal"
+        | "calcul_impozit"
+        | "declaratie"
+        | "op_taxe"
+        | "raport_salarizare"
+        | "altele"
       tip_document_enum:
         | "factura_intrare"
         | "factura_intrare_valuta"
@@ -1374,6 +1434,18 @@ export const Constants = {
         "D700",
         "D112",
         "D394",
+      ],
+      tip_document_contabil: [
+        "balanta",
+        "bilant",
+        "jurnal_cumparari",
+        "jurnal_vanzari",
+        "registru_jurnal",
+        "calcul_impozit",
+        "declaratie",
+        "op_taxe",
+        "raport_salarizare",
+        "altele",
       ],
       tip_document_enum: [
         "factura_intrare",

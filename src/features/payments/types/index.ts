@@ -65,5 +65,5 @@ export type ClientContract = {
   id: number
   tarif_lunar: number
   moneda: string
-  data_inceput: string
+  data_inceput: string | null
 }
